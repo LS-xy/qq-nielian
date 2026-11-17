@@ -26,8 +26,6 @@
     var empty = document.getElementById('empty');
     var hint = document.getElementById('hint');
     var toastEl = document.getElementById('toast');
-    var galleryEl = document.getElementById('gallery');
-    var galleryCard = document.getElementById('galleryCard');
     var radiusInput = document.getElementById('radius');
     var brushCursor = document.getElementById('brushCursor');
 
@@ -255,6 +253,9 @@
         resetNodes();
         hasImage = true;
         empty.style.display = 'none';
+        if (typeof setStep === 'function' && step === 1) {
+            setStep(2);
+        }
         document.getElementById('toStep2').disabled = false;
         dirty = true;
     }
@@ -318,10 +319,13 @@
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     }
 
-    document.getElementById('file').addEventListener('change', function (e) { loadFile(e.target.files[0]); });
-    document.getElementById('file2').addEventListener('change', function (e) { loadFile(e.target.files[0]); });
+    var fileInput = document.getElementById('file');
+    fileInput.addEventListener('change', function (e) { loadFile(e.target.files[0]); });
     document.getElementById('sample').addEventListener('click', sampleImage);
     document.getElementById('sample2').addEventListener('click', sampleImage);
+
+    var pickBtn = document.getElementById('pickBtn');
+    if (pickBtn) pickBtn.addEventListener('click', function () { fileInput.click(); });
 
     window.addEventListener('paste', function (e) {
         var items = e.clipboardData && e.clipboardData.items;
@@ -448,7 +452,7 @@
     function paintAt(cx, cy) {
         var r = brushR * (cssW / 560);
         if (r < 12) r = 12;
-        var inner = edge === 'soft' ? r * 0.22 : r * 0.62;
+        var inner = r * 0.44;
         var r2 = r * r;
         var minx = Math.max(0, Math.floor(((cx - r) / cssW) * N) - 1);
         var maxx = Math.min(N, Math.ceil(((cx + r) / cssW) * N) + 1);
@@ -762,28 +766,19 @@
     document.getElementById('st1').addEventListener('click', function () { setStep(1); });
     document.getElementById('st2').addEventListener('click', function () { setStep(2); });
     document.getElementById('st3').addEventListener('click', function () { setStep(3); });
-    document.getElementById('toStep2').addEventListener('click', function () { setStep(2); });
     document.getElementById('toStep3').addEventListener('click', function () { setStep(3); });
     document.getElementById('backStep2').addEventListener('click', function () { setStep(2); });
 
     /* ================= 工具 ================= */
 
-    document.getElementById('toolSeg').addEventListener('click', function (e) {
-        var b = e.target.closest('button[data-tool]');
-        if (!b) return;
-        tool = b.getAttribute('data-tool');
-        Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
-            x.classList.toggle('on', x === b);
-        });
-        dirty = true;
-    });
-
-    document.getElementById('edgeSeg').addEventListener('click', function (e) {
-        var b = e.target.closest('button[data-edge]');
-        if (!b) return;
-        edge = b.getAttribute('data-edge');
-        Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
-            x.classList.toggle('on', x === b);
+    var toolButtons = document.querySelectorAll('[data-tool]');
+    Array.prototype.forEach.call(toolButtons, function (b) {
+        b.addEventListener('click', function () {
+            tool = b.getAttribute('data-tool');
+            Array.prototype.forEach.call(toolButtons, function (x) {
+                x.classList.toggle('on', x === b);
+            });
+            dirty = true;
         });
     });
 
@@ -791,26 +786,67 @@
         brushR = parseInt(radiusInput.value, 10) || 60;
     });
 
-    document.getElementById('clearAll').addEventListener('click', function () {
+    var clearBtn = document.getElementById('clearAll');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
         wt.fill(0);
         resetNodes();
         toast('已经全部清空');
     });
 
-    document.getElementById('softAll').addEventListener('click', function () {
+    var softBtn = document.getElementById('softAll');
+    if (softBtn) softBtn.addEventListener('click', function () {
         wt.fill(1);
         toast('整张脸都软了');
         dirty = true;
     });
 
-    document.getElementById('bounce').addEventListener('click', bounceAll);
+    /* ---------- 抽屉 ---------- */
+    var drawer = document.getElementById('drawer');
+    var drawerMask = document.getElementById('drawerMask');
+    var aboutDrawer = document.getElementById('aboutDrawer');
+    var aboutMask = document.getElementById('aboutMask');
 
-    document.getElementById('resetView').addEventListener('click', function () {
-        viewScale = 1;
-        viewShiftX = 0;
-        viewShiftY = 0;
-        recomputeView();
-        dirty = true;
+    function openPanel(el, mask) {
+        if (!el || !mask) return;
+        el.classList.add('show');
+        mask.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closePanel(el, mask) {
+        if (!el || !mask) return;
+        el.classList.remove('show');
+        mask.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
+    var menuBtn = document.getElementById('menuBtn');
+    if (menuBtn) menuBtn.addEventListener('click', function () { openPanel(drawer, drawerMask); });
+    if (drawerMask) drawerMask.addEventListener('click', function () { closePanel(drawer, drawerMask); });
+    var drawerClose = document.getElementById('drawerClose');
+    if (drawerClose) drawerClose.addEventListener('click', function () { closePanel(drawer, drawerMask); });
+
+    var aboutBtn = document.getElementById('openAbout');
+    if (aboutBtn) aboutBtn.addEventListener('click', function () {
+        closePanel(drawer, drawerMask);
+        openPanel(aboutDrawer, aboutMask);
+    });
+    var aboutClose = document.getElementById('aboutClose');
+    if (aboutClose) aboutClose.addEventListener('click', function () { closePanel(aboutDrawer, aboutMask); });
+    if (aboutMask) aboutMask.addEventListener('click', function () { closePanel(aboutDrawer, aboutMask); });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closePanel(drawer, drawerMask);
+            closePanel(aboutDrawer, aboutMask);
+        }
+    });
+
+    /* 抽屉里点「开玩」时关闭抽屉 */
+    var goPlay = document.getElementById('toStep3');
+    if (goPlay) goPlay.addEventListener('click', function () {
+        setStep(3);
+        closePanel(drawer, drawerMask);
     });
 
     function toast(msg) {
@@ -914,9 +950,8 @@
                     }
                     var permalink = location.origin + location.pathname + '?img=' + encodeURIComponent(j.url);
                     try { history.replaceState(null, '', permalink); } catch (e) {}
-                    hint.innerHTML = '分享链接：<a href="' + permalink + '">' + permalink + '</a>';
-                    loadGallery();
-                } else {
+                    hint.innerHTML = '分享链接：<a href="' + permalink + '" style="color:var(--pink-deep)">' + permalink + '</a>';
+                                } else {
                     toast((j && j.msg) || '保存失败');
                 }
             })
@@ -925,32 +960,6 @@
                 toast('保存失败，检查网络');
             });
     });
-
-    function loadGallery() {
-        fetch((window.GAME_BASE || '') + '/api.php')
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-                if (!j || !j.ok) return;
-                galleryCard.style.display = 'block';
-                if (!j.items.length) {
-                    galleryEl.innerHTML = '<div class="gallery-empty">还没有人分享，做第一个吧</div>';
-                    return;
-                }
-                galleryEl.innerHTML = '';
-                j.items.forEach(function (it) {
-                    var a = document.createElement('button');
-                    a.type = 'button';
-                    a.className = 'gallery-item';
-                    a.innerHTML = '<img src="' + it.url + '" alt="" loading="lazy">' +
-                        '<small>' + it.time + '</small>';
-                    a.addEventListener('click', function () {
-                        loadFromUrl(it.url);
-                    });
-                    galleryEl.appendChild(a);
-                });
-            })
-            .catch(function () {});
-    }
 
     /* ================= 启动 ================= */
 
@@ -966,5 +975,4 @@
         }
     })();
     requestAnimationFrame(loop);
-    loadGallery();
 })();
